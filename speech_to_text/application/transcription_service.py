@@ -24,7 +24,9 @@ class TranscriptionService:
     def get_job(self, job_id: str) -> TranscriptionJob | None:
         return self._jobs.get(job_id)
 
-    def run(self, job_id: str, audio_path: Path, language: str | None) -> None:
+    def run(
+        self, job_id: str, audio_path: Path, language: str | None, model: str | None = None
+    ) -> None:
         """Execute a transcription to completion. Blocking; run off-loop.
 
         Updates the stored job's status/progress as it goes and always
@@ -43,7 +45,7 @@ class TranscriptionService:
             self._jobs.update(job)
 
         try:
-            result = self._transcriber.transcribe(audio_path, language, report)
+            result = self._transcriber.transcribe(audio_path, language, report, model)
             job.result = result
             job.status = JobStatus.COMPLETED
             job.progress = 1.0

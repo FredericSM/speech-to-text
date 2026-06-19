@@ -22,6 +22,7 @@ class TranscriberPort(Protocol):
         audio_path: Path,
         language: str | None,
         on_progress: ProgressFn,
+        model: str | None = None,
     ) -> TranscriptionResult: ...
 
 

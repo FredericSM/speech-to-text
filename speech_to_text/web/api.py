@@ -6,7 +6,7 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, get_args
 
 from fastapi import FastAPI, Form, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, PlainTextResponse, Response
@@ -16,8 +16,10 @@ from speech_to_text.adapters.faster_whisper_transcriber import FasterWhisperTran
 from speech_to_text.adapters.formatters import TxtFormatter
 from speech_to_text.adapters.job_store import InMemoryJobStore
 from speech_to_text.application.transcription_service import TranscriptionService
-from speech_to_text.config import settings
+from speech_to_text.config import ModelSize, settings
 from speech_to_text.domain.models import JobStatus
+
+_ALLOWED_MODELS: frozenset[str] = frozenset(get_args(ModelSize))
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +35,7 @@ async def lifespan(app: FastAPI):
     global service
     settings.upload_dir.mkdir(parents=True, exist_ok=True)
     transcriber = FasterWhisperTranscriber(
-        model_size=settings.whisper_model,
+        default_model=settings.whisper_model,
         device=settings.device,
         compute_type=settings.compute_type,
     )
@@ -71,9 +73,14 @@ async def favicon() -> Response:
 async def create_job(
     file: UploadFile,
     language: Annotated[str | None, Form()] = None,
+    model: Annotated[str | None, Form()] = None,
 ) -> JobCreated:
     if not file.filename:
         raise HTTPException(status_code=400, detail="Missing file")
+
+    chosen_model = model or None  # empty string from the form means "server default"
+    if chosen_model is not None and chosen_model not in _ALLOWED_MODELS:
+        raise HTTPException(status_code=400, detail=f"Unknown model '{chosen_model}'")
 
     job = service.create_job(file.filename)
     dest = settings.upload_dir / f"{job.id}_{Path(file.filename).name}"
@@ -81,7 +88,7 @@ async def create_job(
 
     lang = language or None  # empty string from the form means auto-detect
     # CPU-bound work runs in a thread so the event loop stays responsive.
-    asyncio.create_task(asyncio.to_thread(service.run, job.id, dest, lang))
+    asyncio.create_task(asyncio.to_thread(service.run, job.id, dest, lang, chosen_model))
     return JobCreated(job_id=job.id)
 
 
