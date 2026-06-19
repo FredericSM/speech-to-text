@@ -22,12 +22,20 @@ and the request never times out on a long file.
 
 ## Setup
 
-Requires `ffmpeg` (decoding) and `uv`:
+Requires `ffmpeg` (decoding), `uv`, and optionally `yt-dlp` (to grab audio from a video URL):
 
 ```bash
-brew install ffmpeg   # if not already installed
+brew install ffmpeg yt-dlp   # if not already installed
 uv sync
 cp .env.example .env  # optional — tweak model / device
+```
+
+## Get an MP3 from a video
+
+To transcribe a video (YouTube, etc.), extract its audio as MP3 first:
+
+```bash
+yt-dlp -x --audio-format mp3 "VIDEO_URL"
 ```
 
 ## Run
