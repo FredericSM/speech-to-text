@@ -7,6 +7,7 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, get_args
+from urllib.parse import quote
 
 from fastapi import FastAPI, Form, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, PlainTextResponse, Response
@@ -116,9 +117,21 @@ async def download(job_id: str) -> Response:
         raise HTTPException(status_code=409, detail="Job not completed")
 
     body = formatter.format(job.result)
-    stem = Path(job.filename).stem
-    headers = {"Content-Disposition": f'attachment; filename="{stem}.{formatter.extension}"'}
+    filename = f"{Path(job.filename).stem}.{formatter.extension}"
+    headers = {"Content-Disposition": _content_disposition(filename)}
     return PlainTextResponse(body, media_type=formatter.media_type, headers=headers)
+
+
+def _content_disposition(filename: str) -> str:
+    """Build an RFC 6266 header that survives non-latin-1 filenames.
+
+    HTTP headers are latin-1 only, so a Unicode filename (accents, fancy
+    quotes from a video title, emoji) would crash the response. We send an
+    ASCII fallback plus a UTF-8 `filename*` that modern browsers prefer.
+    """
+    ascii_name = filename.encode("ascii", "replace").decode("ascii").replace('"', "'")
+    quoted_utf8 = quote(filename, safe="")
+    return f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quoted_utf8}"
 
 
 async def _save_upload(file: UploadFile, dest: Path) -> None:
